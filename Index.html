@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Please wait...</title>
+
+<!-- Telegram Mini App SDK (required) -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<!--
+  ===========================================================================
+  MONETAG SDK — PASTE YOUR SNIPPET HERE
+  ===========================================================================
+  Go to your Monetag dashboard -> Telegram Mini App zone -> "Rewarded
+  Interstitial" -> copy the <script> snippet Monetag gives you and paste it
+  right below this comment. Do NOT invent/guess the script — always use the
+  exact code from your own Monetag dashboard, since the zone ID is unique to
+  your account and the SDK is updated by Monetag from time to time.
+
+  Example of what it typically looks like (illustrative only — replace with
+  YOUR real snippet from the dashboard):
+
+    <script src="https://your-monetag-domain/sdk.js" data-zone="XXXXXX"></script>
+
+  After pasting, Monetag's docs will also give you a JS function to CALL when
+  you want to show the rewarded ad, e.g. something like:
+
+    show_ZZZZZ().then(() => { ...ad watched, continue... })
+
+  Replace the call inside `showAd()` function below (search for
+  "TODO: CALL MONETAG'S SHOW-AD FUNCTION HERE") with that real function call.
+  ===========================================================================
+-->
+
+
+<style>
+  body {
+    margin: 0;
+    font-family: -apple-system, Roboto, Arial, sans-serif;
+    background: var(--tg-theme-bg-color, #ffffff);
+    color: var(--tg-theme-text-color, #111111);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  .ad-slot {
+    width: 100%;
+    max-width: 400px;
+    min-height: 250px;
+    border: 1px dashed #ccc;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 20px 0;
+    color: #999;
+    font-size: 14px;
+  }
+  button {
+    background: var(--tg-theme-button-color, #2481cc);
+    color: var(--tg-theme-button-text-color, #ffffff);
+    border: none;
+    border-radius: 10px;
+    padding: 14px 28px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    max-width: 320px;
+  }
+  button:disabled {
+    opacity: 0.5;
+  }
+  #timer {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 10px 0;
+  }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+  <h3 id="heading">Continue karne ke liye tap karein</h3>
+
+  <!-- Banner ad space #1 -->
+  <div class="ad-slot" id="bannerSlot1">Banner Ad Space (300x250)</div>
+
+  <button id="continueBtn">Continue ➜</button>
+
+  <div id="timerBox" class="hidden">
+    <p>Aapka link taiyaar ho raha hai...</p>
+    <div id="timer">15</div>
+    <!-- Banner ad space #2 (shown during the wait) -->
+    <div class="ad-slot" id="bannerSlot2">Banner Ad Space (300x250)</div>
+  </div>
+
+  <button id="getLinkBtn" class="hidden">Get Link / File ➜</button>
+
+<script>
+  const tg = window.Telegram.WebApp;
+  tg.ready();
+  tg.expand();
+
+  // Get the 'code' passed from the bot's start button (?code=xxxxx)
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+
+  const continueBtn = document.getElementById("continueBtn");
+  const timerBox = document.getElementById("timerBox");
+  const timerEl = document.getElementById("timer");
+  const getLinkBtn = document.getElementById("getLinkBtn");
+  const heading = document.getElementById("heading");
+
+  let seconds = 15;
+
+  function showAd() {
+    // -----------------------------------------------------------------
+    // TODO: CALL MONETAG'S SHOW-AD FUNCTION HERE
+    // Example (replace with the real function name from your dashboard):
+    //
+    //   show_ZZZZZ().then(startTimer).catch(startTimer);
+    //
+    // If you don't want to gate behind ad-watch success/failure, you can
+    // just call startTimer() directly and let the banner ads (bannerSlot1 /
+    // bannerSlot2 above) be your only ad exposure — that's the simplest
+    // and safest option to start with.
+    // -----------------------------------------------------------------
+    startTimer();
+  }
+
+  function startTimer() {
+    continueBtn.classList.add("hidden");
+    timerBox.classList.remove("hidden");
+    heading.textContent = "Please wait...";
+
+    const interval = setInterval(() => {
+      seconds--;
+      timerEl.textContent = seconds;
+      if (seconds <= 0) {
+        clearInterval(interval);
+        timerBox.classList.add("hidden");
+        heading.textContent = "Taiyaar hai!";
+        getLinkBtn.classList.remove("hidden");
+      }
+    }, 1000);
+  }
+
+  continueBtn.addEventListener("click", showAd);
+
+  getLinkBtn.addEventListener("click", () => {
+    // Sends the code back to bot.py's `webapp_data` handler
+    tg.sendData(code);
+    tg.close();
+  });
+</script>
+
+</body>
+</html>

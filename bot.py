@@ -18,13 +18,21 @@ SETUP (see README.md for full step-by-step):
        BOT_TOKEN, ADMIN_ID, MONGO_URI, WEBAPP_URL
   2. pip install -r requirements.txt
   3. python bot.py
+
+NOTE: A tiny dummy HTTP server is started in a background thread purely so
+Render's health check / port scan finds an open port (needed for services
+deployed as "Web Service" type, and for UptimeRobot-style keep-alive pings).
+It does nothing except respond 200 OK to any request. If you deploy this as
+a Render "Background Worker" instead, you can safely delete that part.
 """
 
 import os
 import random
 import string
 import logging
+import threading
 from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from pymongo import MongoClient
 from telegram import (
@@ -47,7 +55,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# CONFIG (loaded from environment variables â€” see .env.example)
+# CONFIG (loaded from environment variables — see .env.example)
 # ---------------------------------------------------------------------------
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 ADMIN_ID = int(os.environ["ADMIN_ID"])          # your numeric Telegram user ID
@@ -104,7 +112,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Open the Mini App (ad-gate) with the code passed as a start_param
     webapp_full_url = f"{WEBAPP_URL}?code={code}"
     keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Continue âžœ", web_app=WebAppInfo(url=webapp_full_url))]]
+        [[InlineKeyboardButton("Continue ➜", web_app=WebAppInfo(url=webapp_full_url))]]
     )
     await update.message.reply_text(
         "Aage badhne ke liye niche button dabayein:",
@@ -167,7 +175,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_users = users_col.count_documents({})
     total_clicks = sum(l.get("clicks", 0) for l in links_col.find({}, {"clicks": 1}))
     await update.message.reply_text(
-        f"ðŸ“Š Stats\nTotal links: {total_links}\nTotal users: {total_users}\nTotal clicks: {total_clicks}"
+        f"📊 Stats\nTotal links: {total_links}\nTotal users: {total_users}\nTotal clicks: {total_clicks}"
     )
 
 
@@ -193,7 +201,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------------------------------------------------------------------
 # WEB APP DATA CALLBACK  (fired after the Mini App shows the ad and the user
-# taps "Get File / Get Link" â€” see webapp/index.html)
+# taps "Get File / Get Link" — see webapp/index.html)
 # ---------------------------------------------------------------------------
 async def webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = update.effective_message.web_app_data.data  # this is the 'code' we sent
@@ -213,9 +221,35 @@ async def webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ---------------------------------------------------------------------------
+# DUMMY HTTP SERVER (Render port-binding / UptimeRobot keep-alive)
+# ---------------------------------------------------------------------------
+class _QuietHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Bot is running.")
+
+    def log_message(self, format, *args):
+        # Suppress default per-request logging so it doesn't spam the logs
+        pass
+
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), _QuietHandler)
+    logger.info(f"Dummy HTTP server listening on port {port} (for Render/UptimeRobot).")
+    server.serve_forever()
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 def main():
+    # Start the dummy web server in a background thread so it doesn't block
+    # the bot's own polling loop.
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
